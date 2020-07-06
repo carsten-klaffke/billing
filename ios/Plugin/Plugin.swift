@@ -8,10 +8,30 @@ import Capacitor
 @objc(BillingPlugin)
 public class BillingPlugin: CAPPlugin {
     
-    @objc func echo(_ call: CAPPluginCall) {
+    @objc func querySkuDetails(_ call: CAPPluginCall) {
+        validate(productIdentifiers: ["fullversion"])
         let value = call.getString("value") ?? ""
         call.success([
             "value": value
         ])
     }
+
+    @objc func launchBillingFlow(_ call: CAPPluginCall) {
+        let value = call.getString("value") ?? ""
+        call.success([
+            "value": value
+        ])
+    }
+
+    var request: SKProductsRequest!
+
+    func validate(productIdentifiers: [String], call: CAPPluginCall) {
+         let productIdentifiers = Set(productIdentifiers)
+
+         request = SKProductsRequest(productIdentifiers: productIdentifiers)
+         request.delegate = Delegate(call: call)
+         request.start()
+    }
+
+
 }

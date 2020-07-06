@@ -1,6 +1,6 @@
 
   Pod::Spec.new do |s|
-    s.name = 'Billing'
+    s.name = 'CapacitorBilling'
     s.version = '0.0.1'
     s.summary = 'Plugin for in-app-purchases'
     s.license = 'MIT'

@@ -1,6 +1,6 @@
 {
   "name": "capacitor-billing",
-  "version": "1.0.2",
+  "version": "1.0.6",
   "description": "Plugin for in-app-purchases",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",

@@ -30,6 +30,6 @@ class PluginTests: XCTestCase {
             XCTFail("Error shouldn't have been called")
         })
         
-        plugin.echo(call!)
+        plugin.querySkuDetails(call!)
     }
 }
