@@ -34,28 +34,28 @@ public class BillingPlugin: CAPPlugin {
          request.start()
     }
 
-public class Delegate: NSObject, SKProductsRequestDelegate {
+    public class Delegate: NSObject, SKProductsRequestDelegate {
 
-    var call: CAPPluginCall?
-    init(call: CAPPluginCall) {
-        self.call = call
-    }
-
-    var products = [SKProduct]()
-    // SKProductsRequestDelegate protocol method.
-    public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
-        if !response.products.isEmpty {
-           products = response.products
-           // Custom method.
-           print("received smth")
-            call?.success([
-               "value": "success"
-           ])
+        var call: CAPPluginCall?
+        init(call: CAPPluginCall) {
+            self.call = call
         }
 
-        for invalidIdentifier in response.invalidProductIdentifiers {
-           // Handle any invalid product identifiers as appropriate.
+        var products = [SKProduct]()
+        // SKProductsRequestDelegate protocol method.
+        public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
+            if !response.products.isEmpty {
+               products = response.products
+               // Custom method.
+               print("received smth")
+                call?.success([
+                   "value": "success"
+               ])
+            }
+
+            for invalidIdentifier in response.invalidProductIdentifiers {
+               // Handle any invalid product identifiers as appropriate.
+            }
         }
     }
-}
 }
