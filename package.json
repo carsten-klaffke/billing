@@ -1,6 +1,6 @@
 {
   "name": "capacitor-billing",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Plugin for in-app-purchases",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -25,7 +25,7 @@
     "dist/",
     "ios/",
     "android/",
-    "Billing.podspec"
+    "CapacitorBilling.podspec"
   ],
   "keywords": [
     "capacitor",
