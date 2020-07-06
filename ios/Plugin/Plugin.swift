@@ -10,6 +10,7 @@ import StoreKit
 public class BillingPlugin: CAPPlugin {
 
     var delegate: Delegate!
+    var observer: Observer!
 
     @objc func querySkuDetails(_ call: CAPPluginCall) {
         delegate = Delegate(call: call)
@@ -21,10 +22,9 @@ public class BillingPlugin: CAPPlugin {
     }
 
     @objc func launchBillingFlow(_ call: CAPPluginCall) {
-        let value = call.getString("value") ?? ""
-        call.success([
-            "value": value
-        ])
+        let payment = SKMutablePayment(product: delegate.product)
+        SKPaymentQueue.default().add(observer)
+        SKPaymentQueue.default().add(payment)
     }
 
     var request: SKProductsRequest!
@@ -38,6 +38,19 @@ public class BillingPlugin: CAPPlugin {
          request.start()
     }
 
+    public class Observer: NSObject, SKPaymentTransactionObserver{
+        public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
+            call?.success([
+                "value": "success"
+            ])
+        }
+        var call: CAPPluginCall?
+        init(call: CAPPluginCall) {
+            self.call = call
+        }
+
+    }
+
     public class Delegate: NSObject, SKProductsRequestDelegate {
 
         var call: CAPPluginCall?
@@ -45,12 +58,12 @@ public class BillingPlugin: CAPPlugin {
             self.call = call
         }
 
-        var products = [SKProduct]()
+        var product = SKProduct()
         // SKProductsRequestDelegate protocol method.
         public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
             print("received")
             if !response.products.isEmpty {
-               products = response.products
+                product = response.products[0]
                // Custom method.
                print("received smth")
                 call?.success([
@@ -60,6 +73,8 @@ public class BillingPlugin: CAPPlugin {
 
             for invalidIdentifier in response.invalidProductIdentifiers {
                // Handle any invalid product identifiers as appropriate.
+                 print("invalid")
+            print(invalidIdentifier)
             }
         }
     }
