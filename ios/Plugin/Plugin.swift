@@ -9,8 +9,11 @@ import StoreKit
 @objc(BillingPlugin)
 public class BillingPlugin: CAPPlugin {
 
+    var delegate: Delegate!
+
     @objc func querySkuDetails(_ call: CAPPluginCall) {
-        validate(productIdentifiers: ["mindlib-full-version"], call: call)
+        delegate = Delegate(call: call)
+        validate(productIdentifiers: ["fullversion"], call: call)
         let value = call.getString("value") ?? ""
         call.success([
             "value": value
@@ -30,7 +33,8 @@ public class BillingPlugin: CAPPlugin {
          let productIdentifiers = Set(productIdentifiers)
 
          request = SKProductsRequest(productIdentifiers: productIdentifiers)
-        request.delegate = Delegate(call: call) as SKProductsRequestDelegate
+
+        request.delegate = delegate
          request.start()
     }
 
@@ -44,6 +48,7 @@ public class BillingPlugin: CAPPlugin {
         var products = [SKProduct]()
         // SKProductsRequestDelegate protocol method.
         public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
+            print("received")
             if !response.products.isEmpty {
                products = response.products
                // Custom method.
