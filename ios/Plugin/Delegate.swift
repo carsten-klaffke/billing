@@ -1,7 +1,8 @@
 import Foundation
 import Capacitor
+import StoreKit
 
-public class Delegate: SKProductsRequestDelegate {
+public class Delegate: NSObject, SKProductsRequestDelegate {
 
     var call: CAPPluginCall?
     init(call: CAPPluginCall) {
@@ -10,14 +11,13 @@ public class Delegate: SKProductsRequestDelegate {
 
     var products = [SKProduct]()
     // SKProductsRequestDelegate protocol method.
-    func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
+    public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
         if !response.products.isEmpty {
            products = response.products
            // Custom method.
            print("received smth")
-           let value = call.getString("value") ?? ""
-           call.success([
-               "value": value
+            call?.success([
+               "value": "success"
            ])
         }
 
