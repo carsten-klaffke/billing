@@ -7,6 +7,7 @@ Web is not implemented, so check for "web" like below to handle the case. Androi
 
 Usage:
 
+```javascript
 import {Plugins} from '@capacitor/core';
 
 Plugins.BillingPlugin.querySkuDetails().then((result: any) => {
@@ -33,17 +34,17 @@ Plugins.BillingPlugin.querySkuDetails().then((result: any) => {
  }).catch(() => {
      
  })
-
+```
 Android:
 
 Register in MainActivity.java
-
+```java
 import de.carstenklaffke.billing.BillingPlugin;
 
 this.init(savedInstanceState, new ArrayList<Class<? extends Plugin>>() {{
     add(BillingPlugin.class);
 }});
-
+```
 iOS:
 
 Add Capability for in-App purchases.
