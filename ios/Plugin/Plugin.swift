@@ -15,10 +15,6 @@ public class BillingPlugin: CAPPlugin {
     @objc func querySkuDetails(_ call: CAPPluginCall) {
         delegate = Delegate(call: call)
         validate(productIdentifiers: ["fullversion"], call: call)
-        let value = call.getString("value") ?? ""
-        call.success([
-            "value": value
-        ])
     }
 
     @objc func launchBillingFlow(_ call: CAPPluginCall) {
@@ -34,14 +30,14 @@ public class BillingPlugin: CAPPlugin {
 
          request = SKProductsRequest(productIdentifiers: productIdentifiers)
 
-        request.delegate = delegate
+         request.delegate = delegate
          request.start()
     }
 
     public class Observer: NSObject, SKPaymentTransactionObserver{
         public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
             call?.success([
-                "value": "success"
+                "productId": "fullversion"
             ])
         }
         var call: CAPPluginCall?
@@ -61,20 +57,21 @@ public class BillingPlugin: CAPPlugin {
         var product = SKProduct()
         // SKProductsRequestDelegate protocol method.
         public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
-            print("received")
+
             if !response.products.isEmpty {
                 product = response.products[0]
-               // Custom method.
-               print("received smth")
                 call?.success([
-                   "value": "success"
+                   "price": product.price,
+                   "price_locale": product.priceLocale,
+                   "title": product.localizedTitle,
+                   "description": product.localizedDescription
                ])
             }
 
             for invalidIdentifier in response.invalidProductIdentifiers {
                // Handle any invalid product identifiers as appropriate.
-                 print("invalid")
-            print(invalidIdentifier)
+                print("invalid")
+                print(invalidIdentifier)
             }
         }
     }
