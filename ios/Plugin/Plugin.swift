@@ -62,7 +62,7 @@ public class BillingPlugin: CAPPlugin {
                 product = response.products[0]
                 call?.success([
                    "price": product.price,
-                   "price_locale": product.priceLocale,
+                   "price_locale": product.priceLocale.currencyCode!,
                    "title": product.localizedTitle,
                    "description": product.localizedDescription
                ])
