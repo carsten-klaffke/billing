@@ -15,12 +15,20 @@ export class BillingPluginWeb extends WebPlugin {
             platforms: ['web']
         });
     }
-    querySkuDetails() {
+    // @ts-ignore
+    querySkuDetails(options) {
         return __awaiter(this, void 0, void 0, function* () {
             return { value: "web" };
         });
     }
-    launchBillingFlow() {
+    // @ts-ignore
+    launchBillingFlow(options) {
+        return __awaiter(this, void 0, void 0, function* () {
+            return { value: "web" };
+        });
+    }
+    // @ts-ignore
+    sendAck(options) {
         return __awaiter(this, void 0, void 0, function* () {
             return { value: "web" };
         });

@@ -4,10 +4,21 @@ declare module "@capacitor/core" {
     }
 }
 export interface BillingPluginPlugin {
-    querySkuDetails(): Promise<{
+    querySkuDetails(options: {
+        product: string;
+        type: string;
+    }): Promise<{
         value: string;
     }>;
-    launchBillingFlow(): Promise<{
+    launchBillingFlow(options: {
+        product: string;
+        type: string;
+    }): Promise<{
+        value: string;
+    }>;
+    sendAck(options: {
+        purchaseToken: string;
+    }): Promise<{
         value: string;
     }>;
 }

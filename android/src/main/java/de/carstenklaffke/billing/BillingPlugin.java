@@ -1,5 +1,7 @@
 package de.carstenklaffke.billing;
 
+import com.android.billingclient.api.AcknowledgePurchaseParams;
+import com.android.billingclient.api.AcknowledgePurchaseResponseListener;
 import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
@@ -43,9 +45,10 @@ public class BillingPlugin extends Plugin {
             public void onBillingSetupFinished(BillingResult billingResult) {
                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                     List<String> skuList = new ArrayList<>();
-                    skuList.add("fullversion");
+                    skuList.add(call.getString("product", "fullversion"));
+                    String type = call.getString("type", "INAPP").equals("SUBS") ? BillingClient.SkuType.SUBS : BillingClient.SkuType.INAPP;
                     SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
-                    params.setSkusList(skuList).setType(BillingClient.SkuType.INAPP);
+                    params.setSkusList(skuList).setType(type);
                     billingClient.querySkuDetailsAsync(params.build(),
                             new SkuDetailsResponseListener() {
                                 @Override
@@ -86,7 +89,9 @@ public class BillingPlugin extends Plugin {
                             if (purchases != null && purchases.size() > 0) {
                                 JSObject ret = null;
                                 try {
-                                    ret = new JSObject(purchases.get(0).getOriginalJson());
+                                    Purchase purchase = purchases.get(0);
+                                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED)
+                                        ret = new JSObject(purchase.getOriginalJson());
                                 } catch (JSONException e) {
                                     e.printStackTrace();
                                 }
@@ -97,6 +102,7 @@ public class BillingPlugin extends Plugin {
                         } else {
                             call.reject("error");
                         }
+
                     }
                 })
                 .enablePendingPurchases()
@@ -109,9 +115,10 @@ public class BillingPlugin extends Plugin {
                                                   public void onBillingSetupFinished(BillingResult billingResult) {
                                                       if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                                                           List<String> skuList = new ArrayList<>();
-                                                          skuList.add("fullversion");
+                                                          skuList.add(call.getString("product", "fullversion"));
                                                           SkuDetailsParams.Builder params = SkuDetailsParams.newBuilder();
-                                                          params.setSkusList(skuList).setType(BillingClient.SkuType.INAPP);
+                                                          String type = call.getString("type", "INAPP").equals("SUBS") ? BillingClient.SkuType.SUBS : BillingClient.SkuType.INAPP;
+                                                          params.setSkusList(skuList).setType(type);
                                                           billingClient.querySkuDetailsAsync(params.build(),
                                                                   new SkuDetailsResponseListener() {
                                                                       @Override
@@ -138,5 +145,27 @@ public class BillingPlugin extends Plugin {
                                               });
 
 
+    }
+
+    @PluginMethod()
+    public void sendAck(final PluginCall call) {
+        AcknowledgePurchaseParams acknowledgePurchaseParams =
+                AcknowledgePurchaseParams.newBuilder()
+                        .setPurchaseToken(call.getString("purchaseToken"))
+                        .build();
+        AcknowledgePurchaseResponseListener acknowledgePurchaseResponseListener = new AcknowledgePurchaseResponseListener() {
+            @Override
+            public void onAcknowledgePurchaseResponse(BillingResult billingResult) {
+                if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
+                    JSObject ret = null;
+                    call.resolve(ret);
+                } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
+                    call.reject("canceled");
+                } else {
+                    call.reject("error");
+                }
+            }
+        };
+        billingClient.acknowledgePurchase(acknowledgePurchaseParams, acknowledgePurchaseResponseListener);
     }
 }

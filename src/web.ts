@@ -9,11 +9,18 @@ export class BillingPluginWeb extends WebPlugin implements BillingPluginPlugin {
     });
   }
 
-  async querySkuDetails(): Promise<{value: string}> {
+  // @ts-ignore
+  async querySkuDetails(options: {product: string, type: string}): Promise<{value: string}> {
     return {value: "web"};
   }
 
-  async launchBillingFlow(): Promise<{value: string}> {
+  // @ts-ignore
+  async launchBillingFlow(options: {product: string, type: string}): Promise<{value: string}> {
+    return {value: "web"};
+  }
+
+  // @ts-ignore
+  async sendAck(options: {purchaseToken: string}): Promise<{value: string}> {
     return {value: "web"};
   }
 
