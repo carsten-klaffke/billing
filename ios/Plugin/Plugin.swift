@@ -9,18 +9,41 @@ import StoreKit
 @objc(BillingPlugin)
 public class BillingPlugin: CAPPlugin {
 
-    var delegate: Delegate!
     var observer: Observer!
+    var delegate: Delegate!
+
+    class ProductList {
+        var products: [SKProduct]
+
+        init() {
+            products = []
+        }
+    }
+
+    var productList: ProductList!
 
     @objc func querySkuDetails(_ call: CAPPluginCall) {
-        delegate = Delegate(call: call)
-        validate(productIdentifiers: ["fullversion"], call: call)
+        let productName = call.getString("product") ?? "fullversion"
+
+        if(productList == nil){
+            productList = ProductList()
+        }
+        delegate = Delegate(call: call, self.productList)
+
+        validate(productIdentifiers: [productName], call: call)
     }
 
     @objc func launchBillingFlow(_ call: CAPPluginCall) {
-        let payment = SKMutablePayment(product: delegate.product)
-        SKPaymentQueue.default().add(observer)
-        SKPaymentQueue.default().add(payment)
+        let productName = call.getString("product") ?? "fullversion"
+
+        for product in self.productList.products {
+            if(product.productIdentifier == productName){
+                let payment = SKMutablePayment(product: product)
+                observer = Observer(call: call, product: productName)
+                SKPaymentQueue.default().add(observer)
+                SKPaymentQueue.default().add(payment)
+            }
+        }
     }
 
     var request: SKProductsRequest!
@@ -36,33 +59,72 @@ public class BillingPlugin: CAPPlugin {
 
     public class Observer: NSObject, SKPaymentTransactionObserver{
         public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
-            call?.success([
-                "productId": "fullversion"
-            ])
+            for transaction in transactions {
+
+                let transactionState: SKPaymentTransactionState = transaction.transactionState
+                switch transactionState {
+                    case .purchased:
+                        // Get the receipt if it's available
+                        if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
+                            FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
+
+                            do {
+                                let receiptData = try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped)
+
+                                let receiptString = receiptData.base64EncodedString(options: [])
+                                call?.success([
+                                    "platform": "ios",
+                                    "productId": self.product,
+                                    "purchaseTime": Int64(NSDate().timeIntervalSince1970*1000),
+                                    "purchaseToken": receiptString
+                                ])
+                            }
+                            catch { call?.error("no receipt")}
+                        }
+                    case .purchasing: break
+                    case .failed: call?.error("failed")
+                    case .deferred: call?.error("deferred")
+                    @unknown default: print("Unexpected transaction state \(transaction.transactionState)")
+                }
+            }
+
         }
         var call: CAPPluginCall?
-        init(call: CAPPluginCall) {
+        init(call: CAPPluginCall, product: String) {
             self.call = call
+            self.product = product
         }
+
+        var product: String
 
     }
 
     public class Delegate: NSObject, SKProductsRequestDelegate {
 
         var call: CAPPluginCall?
-        init(call: CAPPluginCall) {
+        init(call: CAPPluginCall,_ productList: ProductList) {
             self.call = call
+            self.productList = productList
         }
 
-        var product = SKProduct()
+        var productList: ProductList
         // SKProductsRequestDelegate protocol method.
         public func productsRequest(_ request: SKProductsRequest, didReceive response: SKProductsResponse) {
 
             if !response.products.isEmpty {
-                product = response.products[0]
+                let product = response.products[0]
+                var contains = false;
+                for p in productList.products {
+                    if(product.productIdentifier == p.productIdentifier){
+                        contains = true
+                    }
+                }
+                if(!contains){
+                    productList.products.append(product)
+                }
                 call?.success([
                    "price": product.price,
-                   "price_locale": product.priceLocale.currencyCode!,
+                   "price_currency_code": product.priceLocale.currencyCode!,
                    "title": product.localizedTitle,
                    "description": product.localizedDescription
                ])
