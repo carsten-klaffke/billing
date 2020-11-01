@@ -62,6 +62,8 @@ public class BillingPlugin extends Plugin {
                                             e.printStackTrace();
                                         }
                                         call.resolve(ret);
+                                    } else{
+                                        call.reject("error");
                                     }
                                 }
                             });
