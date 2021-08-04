@@ -22,7 +22,7 @@ import org.json.JSONException;
 import java.util.ArrayList;
 import java.util.List;
 
-@NativePlugin()
+@CapacitorPlugin()
 public class BillingPlugin extends Plugin {
 
     private BillingClient billingClient;
