@@ -50,4 +50,5 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation 'com.android.billingclient:billing:3.0.0'
+    implementation "androidx.appcompat:appcompat:1.2.0"
 }
