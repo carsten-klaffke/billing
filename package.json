@@ -1,6 +1,6 @@
 {
   "name": "capacitor-billing",
-  "version": "2.0.2",
+  "version": "5.0.0",
   "description": "Plugin for in-app-purchases",
   "main": "dist/esm/index.js",
   "types": "dist/esm/index.d.ts",
@@ -13,13 +13,13 @@
   "author": "Carsten Klaffke",
   "license": "MIT",
   "dependencies": {
-    "@capacitor/core": "latest"
+    "@capacitor/core": "^5.0.0"
   },
   "devDependencies": {
-    "rimraf": "^3.0.0",
-    "typescript": "^3.2.4",
-    "@capacitor/ios": "latest",
-    "@capacitor/android": "latest"
+    "rimraf": "^5.0.0",
+    "typescript": "^5.0.4",
+    "@capacitor/ios": "^5.0.0",
+    "@capacitor/android": "^5.0.0"
   },
   "files": [
     "dist/",
