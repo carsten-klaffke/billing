@@ -3,10 +3,7 @@ import { BillingPluginPlugin } from './definitions';
 
 export class BillingPluginWeb extends WebPlugin implements BillingPluginPlugin {
   constructor() {
-    super({
-      name: 'BillingPlugin',
-      platforms: ['web']
-    });
+    super();
   }
 
   // @ts-ignore
@@ -26,9 +23,3 @@ export class BillingPluginWeb extends WebPlugin implements BillingPluginPlugin {
 
 }
 
-const BillingPlugin = new BillingPluginWeb();
-
-export { BillingPlugin };
-
-import { registerWebPlugin } from '@capacitor/core';
-registerWebPlugin(BillingPlugin);

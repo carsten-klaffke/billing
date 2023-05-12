@@ -60,3 +60,4 @@ local.properties
 # Android
 /android/.idea
 /android/android.iml
+/node_modules/
