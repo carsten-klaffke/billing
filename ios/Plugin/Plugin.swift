@@ -57,6 +57,24 @@ public class BillingPlugin: CAPPlugin {
          request.start()
     }
 
+    @objc func finishTransaction(_ call: CAPPluginCall) {
+        print("finishing transaction...");
+        guard let transactionId = call.getString("transactionId") else {
+            call.reject("No transactionId provided")
+            return
+        }
+
+        // Find the transaction with the given transactionId
+        if let transaction = SKPaymentQueue.default().transactions.first(where: { $0.transactionIdentifier == transactionId }) {
+            print("found transaction and marked as finished");
+            print(transaction);
+            SKPaymentQueue.default().finishTransaction(transaction)
+            call.success()
+        } else {
+            call.reject("Transaction not found")
+        }
+    }
+
     public class Observer: NSObject, SKPaymentTransactionObserver{
         public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
             for transaction in transactions {
