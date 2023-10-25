@@ -1,8 +1,3 @@
-declare module "@capacitor/core" {
-    interface PluginRegistry {
-        BillingPlugin: BillingPluginPlugin;
-    }
-}
 export interface BillingPluginPlugin {
     querySkuDetails(options: {
         product: string;
@@ -18,6 +13,11 @@ export interface BillingPluginPlugin {
     }>;
     sendAck(options: {
         purchaseToken: string;
+    }): Promise<{
+        value: string;
+    }>;
+    finishTransaction(options: {
+        transactionId: string;
     }): Promise<{
         value: string;
     }>;

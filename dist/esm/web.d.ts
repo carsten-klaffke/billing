@@ -19,6 +19,9 @@ export declare class BillingPluginWeb extends WebPlugin implements BillingPlugin
     }): Promise<{
         value: string;
     }>;
+    finishTransaction(options: {
+        transactionId: string;
+    }): Promise<{
+        value: string;
+    }>;
 }
-declare const BillingPlugin: BillingPluginWeb;
-export { BillingPlugin };
