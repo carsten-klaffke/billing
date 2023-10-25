@@ -73,7 +73,6 @@ public class BillingPlugin: CAPPlugin {
         }
 
         if let foundTransaction = foundTransaction {
-            print(foundTransaction)
             SKPaymentQueue.default().finishTransaction(foundTransaction)
             call.success()
         } else {
