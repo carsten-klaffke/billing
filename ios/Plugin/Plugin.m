@@ -6,4 +6,5 @@
 CAP_PLUGIN(BillingPlugin, "BillingPlugin",
            CAP_PLUGIN_METHOD(querySkuDetails, CAPPluginReturnPromise);
            CAP_PLUGIN_METHOD(launchBillingFlow, CAPPluginReturnPromise);
+           CAP_PLUGIN_METHOD(finishTransaction, CAPPluginReturnPromise);
 )
