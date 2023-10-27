@@ -21,5 +21,9 @@ export class BillingPluginWeb extends WebPlugin implements BillingPluginPlugin {
     return {value: "web"};
   }
 
+  // @ts-ignore
+  async finishTransaction(options: {transactionId: string}): Promise<{value: string}> {
+    return {value: "web"}
+  }
 }
 

@@ -57,6 +57,29 @@ public class BillingPlugin: CAPPlugin {
          request.start()
     }
 
+    @objc func finishTransaction(_ call: CAPPluginCall) {
+        guard let transactionId = call.getString("transactionId") else {
+            call.reject("No transactionId provided")
+            return
+        }
+
+        var foundTransaction: SKPaymentTransaction? = nil
+
+        for transaction in SKPaymentQueue.default().transactions {
+            if transaction.transactionIdentifier == transactionId {
+                foundTransaction = transaction
+                break
+            }
+        }
+
+        if let foundTransaction = foundTransaction {
+            SKPaymentQueue.default().finishTransaction(foundTransaction)
+            call.success()
+        } else {
+            call.reject("Transaction not found")
+        }
+    }
+
     public class Observer: NSObject, SKPaymentTransactionObserver{
         public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
             for transaction in transactions {
@@ -76,7 +99,8 @@ public class BillingPlugin: CAPPlugin {
                                     "platform": "ios",
                                     "productId": self.product,
                                     "purchaseTime": Int64(NSDate().timeIntervalSince1970*1000),
-                                    "purchaseToken": receiptString
+                                    "storeKitTransactionID": transaction.transactionIdentifier ?? "N/A",
+                                    "purchaseToken": receiptString,
                                 ])
                             }
                             catch { call?.error("no receipt")}
