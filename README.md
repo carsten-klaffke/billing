@@ -8,9 +8,10 @@ Web is not implemented, so check for "web" like below to handle the case. Androi
 Usage:
 
 ```javascript
-import {Plugins} from '@capacitor/core';
+import {BillingPlugin} from "capacitor-billing";
+import {Device} from "@capacitor/device";
 
-Plugins.BillingPlugin.querySkuDetails().then((result: any) => {
+BillingPlugin.querySkuDetails().then((result: any) => {
     if (result) {
         if (result.value === "web") {
             setSkuInfos("web")
@@ -23,17 +24,30 @@ Plugins.BillingPlugin.querySkuDetails().then((result: any) => {
             });
         }
     } else {
-        
+
     }
 })
 
- Plugins.BillingPlugin.launchBillingFlow().then((result: any) => {
-     createPurchase(result).then(purchase => {
-         //success
-     })
- }).catch(() => {
-     
- })
+Device.getInfo().then((info: any) => {
+    var product = "PRODUCT_NAME";
+    BillingPlugin.launchBillingFlow({
+        product: product,
+        type: "SUBS"
+    }).then((result: any) => {
+        if (info.platform === "ios") {
+            return BillingPlugin.finishTransaction({transactionId: result.storeKitTransactionID}).then((response: any) => {
+                ...
+                }
+            )
+        } else {
+            return BillingPlugin.sendAck({purchaseToken: result.purchaseToken}).then((response: any) => {
+                ...
+                }
+            )
+        }
+    })
+})
+
 ```
 Android:
 
@@ -42,8 +56,8 @@ Register in MainActivity.java
 import de.carstenklaffke.billing.BillingPlugin;
 
 this.init(savedInstanceState, new ArrayList<Class<? extends Plugin>>() {{
-    add(BillingPlugin.class);
-}});
+        add(BillingPlugin.class);
+        }});
 ```
 iOS:
 
