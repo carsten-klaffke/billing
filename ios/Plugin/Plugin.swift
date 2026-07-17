@@ -46,6 +46,10 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         for product in self.productList.products {
             if product.productIdentifier == productName {
                 let payment = SKMutablePayment(product: product)
+                // Only a valid UUID round-trips into the App Store Server Notification appAccountToken field.
+                if let token = call.getString("appAccountToken"), UUID(uuidString: token) != nil {
+                    payment.applicationUsername = token.lowercased()
+                }
                 observer = Observer(call: call, product: productName)
                 SKPaymentQueue.default().add(observer)
                 SKPaymentQueue.default().add(payment)

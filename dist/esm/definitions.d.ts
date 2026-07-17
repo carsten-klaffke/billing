@@ -8,6 +8,7 @@ export interface BillingPluginPlugin {
     launchBillingFlow(options: {
         product: string;
         type: string;
+        appAccountToken?: string;
     }): Promise<{
         value: string;
     }>;
