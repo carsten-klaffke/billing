@@ -9,6 +9,9 @@
 node_modules/
 hosting.*
 
+# Local npm credentials — never commit tokens
+.npmrc
+
 # IDEs and editors
 /.idea
 .project
