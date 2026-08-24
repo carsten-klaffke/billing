@@ -16,8 +16,8 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "sendAck", returnType: CAPPluginReturnPromise)
     ]
 
-    var observer: Observer!
-    var delegate: Delegate!
+    var observer: Observer?
+    var delegate: Delegate?
 
     class ProductList {
         var products: [SKProduct]
@@ -27,7 +27,7 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         }
     }
 
-    var productList: ProductList!
+    var productList: ProductList?
 
     @objc public func querySkuDetails(_ call: CAPPluginCall) {
         let productName = call.getString("product") ?? "fullversion"
@@ -35,7 +35,7 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         if productList == nil {
             productList = ProductList()
         }
-        delegate = Delegate(call: call, self.productList)
+        delegate = Delegate(call: call, self.productList!)
 
         validate(productIdentifiers: [productName], call: call)
     }
@@ -43,18 +43,28 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
     @objc public func launchBillingFlow(_ call: CAPPluginCall) {
         let productName = call.getString("product") ?? "fullversion"
 
-        for product in self.productList.products {
-            if product.productIdentifier == productName {
-                let payment = SKMutablePayment(product: product)
-                // Only a valid UUID round-trips into the App Store Server Notification appAccountToken field.
-                if let token = call.getString("appAccountToken"), UUID(uuidString: token) != nil {
-                    payment.applicationUsername = token.lowercased()
-                }
-                observer = Observer(call: call, product: productName)
-                SKPaymentQueue.default().add(observer)
-                SKPaymentQueue.default().add(payment)
-            }
+        guard let productList = self.productList else {
+            call.reject("No products loaded. Call querySkuDetails first.")
+            return
         }
+
+        guard let product = productList.products.first(where: { $0.productIdentifier == productName }) else {
+            call.reject("Product not found: \(productName). Call querySkuDetails first.")
+            return
+        }
+
+        let payment = SKMutablePayment(product: product)
+        // Only a valid UUID round-trips into the App Store Server Notification appAccountToken field.
+        if let token = call.getString("appAccountToken"), UUID(uuidString: token) != nil {
+            payment.applicationUsername = token.lowercased()
+        }
+        if let existing = observer {
+            SKPaymentQueue.default().remove(existing)
+        }
+        let nextObserver = Observer(call: call, product: productName)
+        observer = nextObserver
+        SKPaymentQueue.default().add(nextObserver)
+        SKPaymentQueue.default().add(payment)
     }
 
     var request: SKProductsRequest!
@@ -103,6 +113,7 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                 let transactionState: SKPaymentTransactionState = transaction.transactionState
                 switch transactionState {
                     case .purchased:
+                        queue.remove(self)
                         if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
                             FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
 
@@ -119,10 +130,19 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                                 ])
                             }
                             catch { call?.reject("no receipt")}
+                        } else {
+                            call?.reject("no receipt")
                         }
                     case .purchasing: break
-                    case .failed: call?.reject("failed")
-                    case .deferred: call?.reject("deferred")
+                    case .failed:
+                        queue.finishTransaction(transaction)
+                        queue.remove(self)
+                        call?.reject("failed")
+                    case .deferred:
+                        queue.remove(self)
+                        call?.reject("deferred")
+                    case .restored:
+                        break
                     @unknown default: print("Unexpected transaction state \(transaction.transactionState)")
                 }
             }
@@ -163,15 +183,22 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                 }
                 call?.resolve([
                    "price": product.price,
-                   "price_currency_code": product.priceLocale.currencyCode!,
+                   "price_currency_code": product.priceLocale.currencyCode ?? "",
                    "title": product.localizedTitle,
                    "description": product.localizedDescription
                ])
+            } else {
+                let invalid = response.invalidProductIdentifiers.joined(separator: ", ")
+                if invalid.isEmpty {
+                    call?.reject("No products found")
+                } else {
+                    call?.reject("No products found: invalid product id(s) \(invalid)")
+                }
             }
+        }
 
-            for invalidIdentifier in response.invalidProductIdentifiers {
-                print("invalid product id: \(invalidIdentifier)")
-            }
+        public func request(_ request: SKRequest, didFailWithError error: Error) {
+            call?.reject("Product request failed: \(error.localizedDescription)")
         }
     }
 }
