@@ -11,6 +11,7 @@ export declare class BillingPluginWeb extends WebPlugin implements BillingPlugin
     launchBillingFlow(options: {
         product: string;
         type: string;
+        appAccountToken?: string;
     }): Promise<{
         value: string;
     }>;
