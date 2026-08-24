@@ -90,3 +90,10 @@ Device.getInfo().then((info: any) => {
 })
 
 ```
+
+## Receipt validation
+
+This plugin returns store tokens so **your backend** can verify the purchase. It does not call Apple or Google validation APIs itself (those need server secrets).
+
+- **iOS:** `launchBillingFlow` resolves with `purchaseToken` (base64 App Store receipt) and `storeKitTransactionID`. Finish the StoreKit transaction with `finishTransaction`, then verify the receipt or the App Store Server API notification on your server.
+- **Android:** `launchBillingFlow` resolves with Play’s purchase JSON, including `purchaseToken`. Acknowledge with `sendAck`, then verify the token with the [Google Play Developer API](https://developers.google.com/android-publisher) on your server.
