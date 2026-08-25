@@ -92,20 +92,33 @@ public class BillingPlugin extends Plugin {
     private PurchasesUpdatedListener createPurchasesUpdatedListener(final PluginCall call) {
         return (billingResult, purchases) -> {
             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
+                boolean pendingOnly = false;
                 for (Purchase purchase : purchases) {
                     if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
                         try {
                             JSObject ret = new JSObject(purchase.getOriginalJson());
                             call.resolve(ret);
                         } catch (JSONException e) {
-                            e.printStackTrace();
+                            call.reject("Error parsing purchase: " + e.getMessage());
                         }
+                        return;
                     }
+                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
+                        pendingOnly = true;
+                    }
+                }
+                if (!pendingOnly) {
+                    call.reject("Purchase update contained no purchased item");
                 }
             } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
                 call.reject("Purchase canceled");
             } else {
-                call.reject("Error during purchase: " + billingResult.getDebugMessage());
+                String dbg = billingResult.getDebugMessage();
+                if (dbg == null || dbg.isEmpty()) {
+                    call.reject("Error during purchase: billingResponseCode=" + billingResult.getResponseCode());
+                } else {
+                    call.reject("Error during purchase: " + dbg);
+                }
             }
         };
     }
@@ -182,6 +195,7 @@ public class BillingPlugin extends Plugin {
                                 ret.put("price", pricingPhase.getFormattedPrice());
                                 ret.put("price_amount_micros", pricingPhase.getPriceAmountMicros());
                                 ret.put("currency_code", pricingPhase.getPriceCurrencyCode());
+                                ret.put("price_currency_code", pricingPhase.getPriceCurrencyCode());
                                 ret.put("billing_period", pricingPhase.getBillingPeriod());
                                 ret.put("recurrence_mode", pricingPhase.getRecurrenceMode());
                             }
