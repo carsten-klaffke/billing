@@ -17,7 +17,6 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     var observer: Observer?
-    var delegate: Delegate?
 
     class ProductList {
         var products: [SKProduct]
@@ -28,6 +27,18 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
     }
 
     var productList: ProductList?
+    /// SKProductsRequest.delegate is weak; keep request+delegate alive until StoreKit answers.
+    private var inflightQueries: [SkuQuery] = []
+
+    private class SkuQuery {
+        let request: SKProductsRequest
+        let delegate: Delegate
+
+        init(request: SKProductsRequest, delegate: Delegate) {
+            self.request = request
+            self.delegate = delegate
+        }
+    }
 
     @objc public func querySkuDetails(_ call: CAPPluginCall) {
         let productName = call.getString("product") ?? "fullversion"
@@ -35,9 +46,17 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         if productList == nil {
             productList = ProductList()
         }
-        delegate = Delegate(call: call, self.productList!)
 
-        validate(productIdentifiers: [productName], call: call)
+        let delegate = Delegate(call: call, self.productList!)
+        let request = SKProductsRequest(productIdentifiers: Set([productName]))
+        let query = SkuQuery(request: request, delegate: delegate)
+        delegate.onFinished = { [weak self, weak query] in
+            guard let self = self, let query = query else { return }
+            self.inflightQueries.removeAll { $0 === query }
+        }
+        request.delegate = delegate
+        inflightQueries.append(query)
+        request.start()
     }
 
     @objc public func launchBillingFlow(_ call: CAPPluginCall) {
@@ -59,23 +78,19 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
             payment.applicationUsername = token.lowercased()
         }
         if let existing = observer {
+            existing.rejectOnce("Superseded by a new launchBillingFlow")
             SKPaymentQueue.default().remove(existing)
+        }
+        // Stale failed transactions for this SKU would otherwise fire immediately on the new observer.
+        for transaction in SKPaymentQueue.default().transactions {
+            if transaction.payment.productIdentifier == productName && transaction.transactionState == .failed {
+                SKPaymentQueue.default().finishTransaction(transaction)
+            }
         }
         let nextObserver = Observer(call: call, product: productName)
         observer = nextObserver
         SKPaymentQueue.default().add(nextObserver)
         SKPaymentQueue.default().add(payment)
-    }
-
-    var request: SKProductsRequest!
-
-    func validate(productIdentifiers: [String], call: CAPPluginCall) {
-         let productIdentifiers = Set(productIdentifiers)
-
-         request = SKProductsRequest(productIdentifiers: productIdentifiers)
-
-         request.delegate = delegate
-         request.start()
     }
 
     @objc public func finishTransaction(_ call: CAPPluginCall) {
@@ -109,6 +124,9 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
     public class Observer: NSObject, SKPaymentTransactionObserver {
         public func paymentQueue(_ queue: SKPaymentQueue, updatedTransactions transactions: [SKPaymentTransaction]) {
             for transaction in transactions {
+                if transaction.payment.productIdentifier != self.product {
+                    continue
+                }
 
                 let transactionState: SKPaymentTransactionState = transaction.transactionState
                 switch transactionState {
@@ -121,7 +139,7 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                                 let receiptData = try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped)
 
                                 let receiptString = receiptData.base64EncodedString(options: [])
-                                call?.resolve([
+                                resolveOnce([
                                     "platform": "ios",
                                     "productId": self.product,
                                     "purchaseTime": Int64(NSDate().timeIntervalSince1970*1000),
@@ -129,18 +147,18 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                                     "purchaseToken": receiptString,
                                 ])
                             }
-                            catch { call?.reject("no receipt")}
+                            catch { rejectOnce("no receipt") }
                         } else {
-                            call?.reject("no receipt")
+                            rejectOnce("no receipt")
                         }
                     case .purchasing: break
                     case .failed:
                         queue.finishTransaction(transaction)
                         queue.remove(self)
-                        call?.reject("failed")
+                        rejectOnce("failed")
                     case .deferred:
                         queue.remove(self)
-                        call?.reject("deferred")
+                        rejectOnce("deferred")
                     case .restored:
                         break
                     @unknown default: print("Unexpected transaction state \(transaction.transactionState)")
@@ -156,11 +174,23 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
 
         var product: String
 
+        func resolveOnce(_ data: [String: Any]) {
+            guard let call = call else { return }
+            self.call = nil
+            call.resolve(data)
+        }
+
+        func rejectOnce(_ message: String) {
+            guard let call = call else { return }
+            self.call = nil
+            call.reject(message)
+        }
     }
 
     public class Delegate: NSObject, SKProductsRequestDelegate {
 
         var call: CAPPluginCall?
+        var onFinished: (() -> Void)?
         init(call: CAPPluginCall,_ productList: ProductList) {
             self.call = call
             self.productList = productList
@@ -181,24 +211,34 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                 if !contains {
                     productList.products.append(product)
                 }
-                call?.resolve([
-                   "price": product.price,
-                   "price_currency_code": product.priceLocale.currencyCode ?? "",
-                   "title": product.localizedTitle,
-                   "description": product.localizedDescription
-               ])
+                settle { call in
+                    call.resolve([
+                       "price": product.price,
+                       "price_currency_code": product.priceLocale.currencyCode ?? "",
+                       "title": product.localizedTitle,
+                       "description": product.localizedDescription
+                   ])
+                }
             } else {
                 let invalid = response.invalidProductIdentifiers.joined(separator: ", ")
                 if invalid.isEmpty {
-                    call?.reject("No products found")
+                    settle { $0.reject("No products found") }
                 } else {
-                    call?.reject("No products found: invalid product id(s) \(invalid)")
+                    settle { $0.reject("No products found: invalid product id(s) \(invalid)") }
                 }
             }
         }
 
         public func request(_ request: SKRequest, didFailWithError error: Error) {
-            call?.reject("Product request failed: \(error.localizedDescription)")
+            settle { $0.reject("Product request failed: \(error.localizedDescription)") }
+        }
+
+        private func settle(_ block: (CAPPluginCall) -> Void) {
+            guard let call = call else { return }
+            self.call = nil
+            block(call)
+            onFinished?()
+            onFinished = nil
         }
     }
 }

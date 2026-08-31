@@ -85,12 +85,7 @@ public class BillingPlugin extends Plugin {
             } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
                 call.reject("Purchase canceled");
             } else {
-                String dbg = billingResult.getDebugMessage();
-                if (dbg == null || dbg.isEmpty()) {
-                    call.reject("Error during purchase: billingResponseCode=" + billingResult.getResponseCode());
-                } else {
-                    call.reject("Error during purchase: " + dbg);
-                }
+                rejectBilling("Error during purchase", billingResult, call);
             }
         };
     }
@@ -194,7 +189,7 @@ public class BillingPlugin extends Plugin {
 
                                 BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
                                 if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                                    call.reject("Error launching billing flow: " + billingResult2.getDebugMessage());
+                                    rejectBilling("Error launching billing flow", billingResult2, call);
                                 }
                             } else {
                                 BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
@@ -206,7 +201,7 @@ public class BillingPlugin extends Plugin {
 
                                 BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
                                 if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                                    call.reject("Error launching billing flow: " + billingResult2.getDebugMessage());
+                                    rejectBilling("Error launching billing flow", billingResult2, call);
                                 }
                             }
                         } else {
@@ -225,8 +220,23 @@ public class BillingPlugin extends Plugin {
         });
     }
 
+    private void rejectBilling(String prefix, BillingResult billingResult, PluginCall call) {
+        String dbg = billingResult.getDebugMessage();
+        if (dbg == null || dbg.isEmpty()) {
+            call.reject(prefix + ": billingResponseCode=" + billingResult.getResponseCode());
+        } else {
+            call.reject(prefix + ": " + dbg);
+        }
+    }
+
     @PluginMethod()
     public void sendAck(final PluginCall call) {
+        String purchaseToken = call.getString("purchaseToken");
+        if (purchaseToken == null || purchaseToken.isEmpty()) {
+            call.reject("No purchaseToken provided");
+            return;
+        }
+
         BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* Empty listener */ });
 
         startBillingClientConnection(billingClient, new BillingClientStateListener() {
@@ -234,13 +244,13 @@ public class BillingPlugin extends Plugin {
             public void onBillingSetupFinished(BillingResult billingResult) {
                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                     AcknowledgePurchaseParams acknowledgePurchaseParams = AcknowledgePurchaseParams.newBuilder()
-                            .setPurchaseToken(call.getString("purchaseToken"))
+                            .setPurchaseToken(purchaseToken)
                             .build();
                     billingClient.acknowledgePurchase(acknowledgePurchaseParams, billingResult1 -> {
                         if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK) {
                             call.resolve();
                         } else {
-                            call.reject("Error acknowledging purchase: " + billingResult1.getDebugMessage());
+                            rejectBilling("Error acknowledging purchase", billingResult1, call);
                         }
                     });
                 } else {

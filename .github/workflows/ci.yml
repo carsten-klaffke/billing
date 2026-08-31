@@ -16,6 +16,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Install test-app dependencies
+      - name: Install and build test-app
         working-directory: test-app
-        run: npm ci
+        run: |
+          npm ci
+          npm run build
