@@ -126,14 +126,17 @@ public class BillingPlugin extends Plugin {
                             if (productDetails.getSubscriptionOfferDetails() != null && !productDetails.getSubscriptionOfferDetails().isEmpty()) {
                                 ProductDetails.SubscriptionOfferDetails subscriptionOfferDetails = productDetails.getSubscriptionOfferDetails().get(0);
                                 ProductDetails.PricingPhases pricingPhases = subscriptionOfferDetails.getPricingPhases();
-                                ProductDetails.PricingPhase pricingPhase = pricingPhases.getPricingPhaseList().get(0);
+                                List<ProductDetails.PricingPhase> phaseList = pricingPhases.getPricingPhaseList();
+                                if (phaseList != null && !phaseList.isEmpty()) {
+                                    ProductDetails.PricingPhase pricingPhase = phaseList.get(0);
 
-                                ret.put("price", pricingPhase.getFormattedPrice());
-                                ret.put("price_amount_micros", pricingPhase.getPriceAmountMicros());
-                                ret.put("currency_code", pricingPhase.getPriceCurrencyCode());
-                                ret.put("price_currency_code", pricingPhase.getPriceCurrencyCode());
-                                ret.put("billing_period", pricingPhase.getBillingPeriod());
-                                ret.put("recurrence_mode", pricingPhase.getRecurrenceMode());
+                                    ret.put("price", pricingPhase.getFormattedPrice());
+                                    ret.put("price_amount_micros", pricingPhase.getPriceAmountMicros());
+                                    ret.put("currency_code", pricingPhase.getPriceCurrencyCode());
+                                    ret.put("price_currency_code", pricingPhase.getPriceCurrencyCode());
+                                    ret.put("billing_period", pricingPhase.getBillingPeriod());
+                                    ret.put("recurrence_mode", pricingPhase.getRecurrenceMode());
+                                }
                             }
 
                             call.resolve(ret);
