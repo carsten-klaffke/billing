@@ -139,27 +139,11 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
 
                 let transactionState: SKPaymentTransactionState = transaction.transactionState
                 switch transactionState {
-                    case .purchased:
+                    case .purchased, .restored:
+                        // Same payload as a new purchase so existing finishTransaction + backend
+                        // validation still works. Do not auto-finish; the host app must call finishTransaction.
                         queue.remove(self)
-                        if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
-                            FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
-
-                            do {
-                                let receiptData = try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped)
-
-                                let receiptString = receiptData.base64EncodedString(options: [])
-                                resolveOnce([
-                                    "platform": "ios",
-                                    "productId": self.product,
-                                    "purchaseTime": Int64(NSDate().timeIntervalSince1970*1000),
-                                    "storeKitTransactionID": transaction.transactionIdentifier ?? "N/A",
-                                    "purchaseToken": receiptString,
-                                ])
-                            }
-                            catch { rejectOnce("no receipt") }
-                        } else {
-                            rejectOnce("no receipt")
-                        }
+                        settleWithReceipt(transaction)
                     case .purchasing: break
                     case .failed:
                         queue.finishTransaction(transaction)
@@ -168,8 +152,6 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
                     case .deferred:
                         queue.remove(self)
                         rejectOnce("deferred")
-                    case .restored:
-                        break
                     @unknown default: print("Unexpected transaction state \(transaction.transactionState)")
                 }
             }
@@ -182,6 +164,27 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
         }
 
         var product: String
+
+        func settleWithReceipt(_ transaction: SKPaymentTransaction) {
+            if let appStoreReceiptURL = Bundle.main.appStoreReceiptURL,
+                FileManager.default.fileExists(atPath: appStoreReceiptURL.path) {
+                do {
+                    let receiptData = try Data(contentsOf: appStoreReceiptURL, options: .alwaysMapped)
+                    let receiptString = receiptData.base64EncodedString(options: [])
+                    resolveOnce([
+                        "platform": "ios",
+                        "productId": self.product,
+                        "purchaseTime": Int64(NSDate().timeIntervalSince1970*1000),
+                        "storeKitTransactionID": transaction.transactionIdentifier ?? "N/A",
+                        "purchaseToken": receiptString,
+                    ])
+                } catch {
+                    rejectOnce("no receipt")
+                }
+            } else {
+                rejectOnce("no receipt")
+            }
+        }
 
         func resolveOnce(_ data: [String: Any]) {
             guard let call = call else { return }

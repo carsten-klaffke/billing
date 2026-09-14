@@ -23,6 +23,7 @@ import org.json.JSONException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin()
 public class BillingPlugin extends Plugin {
@@ -99,32 +100,51 @@ public class BillingPlugin extends Plugin {
     }
 
     private PurchasesUpdatedListener createPurchasesUpdatedListener(final PluginCall call) {
+        final AtomicBoolean settled = new AtomicBoolean(false);
         return (billingResult, purchases) -> {
+            if (settled.get()) {
+                return;
+            }
             if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK && purchases != null) {
-                boolean pendingOnly = false;
+                Purchase pending = null;
                 for (Purchase purchase : purchases) {
                     if (purchase.getPurchaseState() == Purchase.PurchaseState.PURCHASED) {
-                        try {
-                            JSObject ret = new JSObject(purchase.getOriginalJson());
-                            call.resolve(ret);
-                        } catch (JSONException e) {
-                            call.reject("Error parsing purchase: " + e.getMessage());
-                        }
+                        settlePurchaseJson(call, purchase, settled);
                         return;
                     }
-                    if (purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
-                        pendingOnly = true;
+                    if (pending == null && purchase.getPurchaseState() == Purchase.PurchaseState.PENDING) {
+                        pending = purchase;
                     }
                 }
-                if (!pendingOnly) {
+                if (pending != null) {
+                    // Same JSON shape as PURCHASED; Play sets purchaseState=2. Do not hang the JS promise.
+                    settlePurchaseJson(call, pending, settled);
+                    return;
+                }
+                if (settled.compareAndSet(false, true)) {
                     call.reject("Purchase update contained no purchased item");
                 }
             } else if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.USER_CANCELED) {
-                call.reject("Purchase canceled");
+                if (settled.compareAndSet(false, true)) {
+                    call.reject("Purchase canceled");
+                }
             } else {
-                rejectBilling("Error during purchase", billingResult, call);
+                if (settled.compareAndSet(false, true)) {
+                    rejectBilling("Error during purchase", billingResult, call);
+                }
             }
         };
+    }
+
+    private void settlePurchaseJson(PluginCall call, Purchase purchase, AtomicBoolean settled) {
+        if (!settled.compareAndSet(false, true)) {
+            return;
+        }
+        try {
+            call.resolve(new JSObject(purchase.getOriginalJson()));
+        } catch (JSONException e) {
+            call.reject("Error parsing purchase: " + e.getMessage());
+        }
     }
 
     private QueryProductDetailsParams productDetailsParamsFromCall(PluginCall call) {
