@@ -12,7 +12,7 @@ export class BillingPluginWeb extends WebPlugin implements BillingPluginPlugin {
   }
 
   // @ts-ignore
-  async launchBillingFlow(options: {product: string, type: string}): Promise<{value: string}> {
+  async launchBillingFlow(options: {product: string, type: string, appAccountToken?: string}): Promise<{value: string}> {
     return {value: "web"};
   }
 
