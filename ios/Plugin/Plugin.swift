@@ -30,6 +30,15 @@ public class BillingPlugin: CAPPlugin, CAPBridgedPlugin {
     /// SKProductsRequest.delegate is weak; keep request+delegate alive until StoreKit answers.
     private var inflightQueries: [SkuQuery] = []
 
+    deinit {
+        if let observer = observer {
+            SKPaymentQueue.default().remove(observer)
+        }
+        for query in inflightQueries {
+            query.request.cancel()
+        }
+    }
+
     private class SkuQuery {
         let request: SKProductsRequest
         let delegate: Delegate

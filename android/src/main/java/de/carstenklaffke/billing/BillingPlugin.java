@@ -50,6 +50,15 @@ public class BillingPlugin extends Plugin {
         }
     }
 
+    private boolean ensureActivity(PluginCall call) {
+        android.app.Activity activity = bridge.getActivity();
+        if (activity == null || activity.isFinishing()) {
+            call.reject("No activity available");
+            return false;
+        }
+        return true;
+    }
+
     private BillingClient createNewBillingClient(PurchasesUpdatedListener listener) {
         return BillingClient.newBuilder(bridge.getActivity())
                 .setListener(listener)
@@ -92,6 +101,10 @@ public class BillingPlugin extends Plugin {
 
     @PluginMethod()
     public void querySkuDetails(final PluginCall call) {
+        if (!ensureActivity(call)) {
+            return;
+        }
+
         BillingClient billingClient = createNewBillingClient((billingResult, purchases) -> { /* Empty listener */ });
 
         startBillingClientConnection(billingClient, new BillingClientStateListener() {
@@ -158,6 +171,10 @@ public class BillingPlugin extends Plugin {
 
     @PluginMethod()
     public void launchBillingFlow(final PluginCall call) {
+        if (!ensureActivity(call)) {
+            return;
+        }
+
         BillingClient billingClient = createNewBillingClient(createPurchasesUpdatedListener(call));
 
         startBillingClientConnection(billingClient, new BillingClientStateListener() {
@@ -237,6 +254,9 @@ public class BillingPlugin extends Plugin {
         String purchaseToken = call.getString("purchaseToken");
         if (purchaseToken == null || purchaseToken.isEmpty()) {
             call.reject("No purchaseToken provided");
+            return;
+        }
+        if (!ensureActivity(call)) {
             return;
         }
 
