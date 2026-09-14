@@ -8,11 +8,12 @@
       "es2017"
     ],
     "module": "ESNext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "noImplicitAny": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "outDir": "dist/esm",
+    "rootDir": "./src",
     "sourceMap": true,
     "target": "es2017"
   },

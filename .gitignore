@@ -57,6 +57,9 @@ local.properties
 # Gradle generated files
 .gradle/
 
+# npm pack artifacts
+*.tgz
+
 # Signing files
 .signing/
 
