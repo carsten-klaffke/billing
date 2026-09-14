@@ -44,7 +44,7 @@ allprojects {
 }
 ```
 
-This plugin depends on Google Play Billing Library 7.x, which can pull older Kotlin stdlib artifacts. Excluding the deprecated `jdk7`/`jdk8` artifacts avoids duplicate classes with newer Capacitor / Kotlin toolchains.
+This plugin depends on Google Play Billing Library 9.x, which can pull older Kotlin stdlib artifacts. Excluding the deprecated `jdk7`/`jdk8` artifacts avoids duplicate classes with newer Capacitor / Kotlin toolchains. Host apps that ship to Play must use a supported Billing Library; version 7 is blocked for new uploads after 31 August 2026.
 
 Usage:
 

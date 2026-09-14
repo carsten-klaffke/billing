@@ -5,10 +5,13 @@ import com.android.billingclient.api.BillingClient;
 import com.android.billingclient.api.BillingClientStateListener;
 import com.android.billingclient.api.BillingFlowParams;
 import com.android.billingclient.api.BillingResult;
+import com.android.billingclient.api.PendingPurchasesParams;
 import com.android.billingclient.api.ProductDetails;
 import com.android.billingclient.api.Purchase;
 import com.android.billingclient.api.PurchasesUpdatedListener;
 import com.android.billingclient.api.QueryProductDetailsParams;
+import com.android.billingclient.api.QueryProductDetailsResult;
+import com.android.billingclient.api.UnfetchedProduct;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -17,8 +20,8 @@ import com.getcapacitor.annotation.CapacitorPlugin;
 
 import org.json.JSONException;
 
-import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 @CapacitorPlugin()
@@ -28,7 +31,7 @@ public class BillingPlugin extends Plugin {
     private void rejectQueryProductDetailsFailure(
             final PluginCall call,
             final BillingResult billingResult,
-            final List<ProductDetails> productDetailsList) {
+            final QueryProductDetailsResult queryResult) {
         int code = billingResult.getResponseCode();
         String dbg = billingResult.getDebugMessage();
         if (dbg == null) {
@@ -36,18 +39,38 @@ public class BillingPlugin extends Plugin {
         }
         String productId = call.getString("product", "fullversion");
         String productType = call.getString("type", "INAPP");
+        List<ProductDetails> productDetailsList = fetchedProductDetails(queryResult);
         if (code == BillingClient.BillingResponseCode.OK
                 && (productDetailsList == null || productDetailsList.isEmpty())) {
+            String unfetched = unfetchedSuffix(queryResult);
             call.reject(
                     "Error retrieving product details: Play returned no product for productId=\""
                             + productId
                             + "\" type=\""
                             + productType
-                            + "\". Add this managed product or subscription in Play Console for the same applicationId as this app, publish it (e.g. internal testing), and install a build signed with a key Play knows for that listing.");
+                            + "\""
+                            + unfetched
+                            + ". Add this managed product or subscription in Play Console for the same applicationId as this app, publish it (e.g. internal testing), and install a build signed with a key Play knows for that listing.");
         } else {
             String suffix = dbg.isEmpty() ? ("billingResponseCode=" + code) : ("billingResponseCode=" + code + ": " + dbg);
             call.reject("Error retrieving product details: " + suffix);
         }
+    }
+
+    private static List<ProductDetails> fetchedProductDetails(QueryProductDetailsResult queryResult) {
+        if (queryResult == null) {
+            return null;
+        }
+        return queryResult.getProductDetailsList();
+    }
+
+    private static String unfetchedSuffix(QueryProductDetailsResult queryResult) {
+        if (queryResult == null || queryResult.getUnfetchedProductList() == null
+                || queryResult.getUnfetchedProductList().isEmpty()) {
+            return "";
+        }
+        UnfetchedProduct unfetched = queryResult.getUnfetchedProductList().get(0);
+        return " (unfetchedStatus=" + unfetched.getStatusCode() + ")";
     }
 
     private boolean ensureActivity(PluginCall call) {
@@ -60,9 +83,14 @@ public class BillingPlugin extends Plugin {
     }
 
     private BillingClient createNewBillingClient(PurchasesUpdatedListener listener) {
+        PendingPurchasesParams pendingPurchasesParams = PendingPurchasesParams.newBuilder()
+                .enableOneTimeProducts()
+                .enablePrepaidPlans()
+                .build();
         return BillingClient.newBuilder(bridge.getActivity())
                 .setListener(listener)
-                .enablePendingPurchases()
+                .enablePendingPurchases(pendingPurchasesParams)
+                .enableAutoServiceReconnection()
                 .build();
     }
 
@@ -99,6 +127,45 @@ public class BillingPlugin extends Plugin {
         };
     }
 
+    private QueryProductDetailsParams productDetailsParamsFromCall(PluginCall call) {
+        QueryProductDetailsParams.Product product = QueryProductDetailsParams.Product.newBuilder()
+                .setProductId(call.getString("product", "fullversion"))
+                .setProductType(call.getString("type", "INAPP").equals("SUBS")
+                        ? BillingClient.ProductType.SUBS
+                        : BillingClient.ProductType.INAPP)
+                .build();
+        return QueryProductDetailsParams.newBuilder()
+                .setProductList(Collections.singletonList(product))
+                .build();
+    }
+
+    private ProductDetails.OneTimePurchaseOfferDetails firstOneTimeOffer(ProductDetails productDetails) {
+        List<ProductDetails.OneTimePurchaseOfferDetails> offers = productDetails.getOneTimePurchaseOfferDetailsList();
+        if (offers != null && !offers.isEmpty()) {
+            return offers.get(0);
+        }
+        return productDetails.getOneTimePurchaseOfferDetails();
+    }
+
+    private BillingFlowParams.ProductDetailsParams productDetailsParamsForPurchase(ProductDetails productDetails) {
+        BillingFlowParams.ProductDetailsParams.Builder builder = BillingFlowParams.ProductDetailsParams.newBuilder()
+                .setProductDetails(productDetails);
+
+        if (productDetails.getSubscriptionOfferDetails() != null
+                && !productDetails.getSubscriptionOfferDetails().isEmpty()) {
+            builder.setOfferToken(productDetails.getSubscriptionOfferDetails().get(0).getOfferToken());
+        } else {
+            ProductDetails.OneTimePurchaseOfferDetails offer = firstOneTimeOffer(productDetails);
+            if (offer != null) {
+                String offerToken = offer.getOfferToken();
+                if (offerToken != null && !offerToken.isEmpty()) {
+                    builder.setOfferToken(offerToken);
+                }
+            }
+        }
+        return builder.build();
+    }
+
     @PluginMethod()
     public void querySkuDetails(final PluginCall call) {
         if (!ensureActivity(call)) {
@@ -111,26 +178,18 @@ public class BillingPlugin extends Plugin {
             @Override
             public void onBillingSetupFinished(BillingResult billingResult) {
                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
-                    productList.add(QueryProductDetailsParams.Product.newBuilder()
-                            .setProductId(call.getString("product", "fullversion"))
-                            .setProductType(call.getString("type", "INAPP").equals("SUBS") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP)
-                            .build());
-
-                    QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
-                            .setProductList(productList)
-                            .build();
-
-                    billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
-                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsList != null && !productDetailsList.isEmpty()) {
+                    billingClient.queryProductDetailsAsync(productDetailsParamsFromCall(call), (billingResult1, queryResult) -> {
+                        List<ProductDetails> productDetailsList = fetchedProductDetails(queryResult);
+                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK
+                                && productDetailsList != null && !productDetailsList.isEmpty()) {
                             ProductDetails productDetails = productDetailsList.get(0);
                             JSObject ret = new JSObject();
                             ret.put("productId", productDetails.getProductId());
                             ret.put("title", productDetails.getName());
                             ret.put("description", productDetails.getDescription());
 
-                            if (productDetails.getOneTimePurchaseOfferDetails() != null) {
-                                ProductDetails.OneTimePurchaseOfferDetails offerDetails = productDetails.getOneTimePurchaseOfferDetails();
+                            ProductDetails.OneTimePurchaseOfferDetails offerDetails = firstOneTimeOffer(productDetails);
+                            if (offerDetails != null) {
                                 ret.put("price", offerDetails.getFormattedPrice());
                                 ret.put("price_amount_micros", offerDetails.getPriceAmountMicros());
                                 ret.put("price_currency_code", offerDetails.getPriceCurrencyCode());
@@ -154,7 +213,7 @@ public class BillingPlugin extends Plugin {
 
                             call.resolve(ret);
                         } else {
-                            rejectQueryProductDetailsFailure(call, billingResult1, productDetailsList);
+                            rejectQueryProductDetailsFailure(call, billingResult1, queryResult);
                         }
                     });
                 } else {
@@ -181,51 +240,22 @@ public class BillingPlugin extends Plugin {
             @Override
             public void onBillingSetupFinished(BillingResult billingResult) {
                 if (billingResult.getResponseCode() == BillingClient.BillingResponseCode.OK) {
-                    List<QueryProductDetailsParams.Product> productList = new ArrayList<>();
-                    productList.add(QueryProductDetailsParams.Product.newBuilder()
-                            .setProductId(call.getString("product", "fullversion"))
-                            .setProductType(call.getString("type", "INAPP").equals("SUBS") ? BillingClient.ProductType.SUBS : BillingClient.ProductType.INAPP)
-                            .build());
-
-                    QueryProductDetailsParams params = QueryProductDetailsParams.newBuilder()
-                            .setProductList(productList)
-                            .build();
-
-                    billingClient.queryProductDetailsAsync(params, (billingResult1, productDetailsList) -> {
-                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK && productDetailsList != null && !productDetailsList.isEmpty()) {
+                    billingClient.queryProductDetailsAsync(productDetailsParamsFromCall(call), (billingResult1, queryResult) -> {
+                        List<ProductDetails> productDetailsList = fetchedProductDetails(queryResult);
+                        if (billingResult1.getResponseCode() == BillingClient.BillingResponseCode.OK
+                                && productDetailsList != null && !productDetailsList.isEmpty()) {
                             ProductDetails productDetails = productDetailsList.get(0);
+                            BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
+                                    .setProductDetailsParamsList(Arrays.asList(
+                                            productDetailsParamsForPurchase(productDetails)))
+                                    .build();
 
-                            if (productDetails.getSubscriptionOfferDetails() != null && !productDetails.getSubscriptionOfferDetails().isEmpty()) {
-                                ProductDetails.SubscriptionOfferDetails subscriptionOfferDetails = productDetails.getSubscriptionOfferDetails().get(0);
-                                String offerToken = subscriptionOfferDetails.getOfferToken();
-
-                                BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
-                                        .setProductDetailsParamsList(Arrays.asList(
-                                                BillingFlowParams.ProductDetailsParams.newBuilder()
-                                                        .setProductDetails(productDetails)
-                                                        .setOfferToken(offerToken)
-                                                        .build()))
-                                        .build();
-
-                                BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
-                                if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                                    rejectBilling("Error launching billing flow", billingResult2, call);
-                                }
-                            } else {
-                                BillingFlowParams billingFlowParams = BillingFlowParams.newBuilder()
-                                        .setProductDetailsParamsList(Arrays.asList(
-                                                BillingFlowParams.ProductDetailsParams.newBuilder()
-                                                        .setProductDetails(productDetails)
-                                                        .build()))
-                                        .build();
-
-                                BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
-                                if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
-                                    rejectBilling("Error launching billing flow", billingResult2, call);
-                                }
+                            BillingResult billingResult2 = billingClient.launchBillingFlow(bridge.getActivity(), billingFlowParams);
+                            if (billingResult2.getResponseCode() != BillingClient.BillingResponseCode.OK) {
+                                rejectBilling("Error launching billing flow", billingResult2, call);
                             }
                         } else {
-                            rejectQueryProductDetailsFailure(call, billingResult1, productDetailsList);
+                            rejectQueryProductDetailsFailure(call, billingResult1, queryResult);
                         }
                     });
                 } else {
@@ -288,4 +318,3 @@ public class BillingPlugin extends Plugin {
         });
     }
 }
-
